@@ -2,16 +2,17 @@
 package main
 
 import (
-	"fmt"
-	"io"
+	"bufio"
 	"bytes"
 	"crypto/aes"
+	"fmt"
+	"io"
 
-	"github.com/andlabs/reallymine/command"
-	"github.com/andlabs/reallymine/disk"
 	"github.com/andlabs/reallymine/bridge"
-	"github.com/andlabs/reallymine/kek"
+	"github.com/andlabs/reallymine/command"
 	"github.com/andlabs/reallymine/decryptloop"
+	"github.com/andlabs/reallymine/disk"
+	"github.com/andlabs/reallymine/kek"
 )
 
 var zeroSector [disk.SectorSize]byte
@@ -47,16 +48,16 @@ func cDumpLast(d *disk.Disk, out io.Writer) error {
 }
 
 var dumplast = &command.Command{
-	Name:		"dumplast",
-	Args:		[]command.Arg{command.ArgDisk, command.ArgOutFile},
-	Description:	"Dumps the last non-zero sector on %s to %s.",
-	Do:			cDumpLast,
+	Name:        "dumplast",
+	Args:        []command.Arg{command.ArgDisk, command.ArgOutFile},
+	Description: "Dumps the last non-zero sector on %s to %s.",
+	Do:          cDumpLast,
 }
 
 func cDecryptKeySector(d *disk.Disk, out io.Writer, a *kek.Asker) error {
 	dec := &Decrypter{
-		Disk:		d,
-		Out:		out,
+		Disk: d,
+		Out:  out,
 	}
 	err := dec.FindKeySector()
 	if err != nil {
@@ -85,17 +86,17 @@ func cDumpKeySector(d *disk.Disk, out io.Writer) error {
 }
 
 var dumpkeysector = &command.Command{
-	Name:		"dumpkeysector",
-	Args:		[]command.Arg{command.ArgDisk, command.ArgOutFile},
-	Description:	"Identifies and dumps the key sector on %s to %s.",
-	Do:			cDumpKeySector,
+	Name:        "dumpkeysector",
+	Args:        []command.Arg{command.ArgDisk, command.ArgOutFile},
+	Description: "Identifies and dumps the key sector on %s to %s.",
+	Do:          cDumpKeySector,
 }
 
 var decryptkeysector = &command.Command{
-	Name:		"decryptkeysector",
-	Args:		[]command.Arg{command.ArgDisk, command.ArgOutFile, command.ArgKEK},
-	Description:	"Identifies, decrypts, and dumps the key sector on %s to %s using %s.",
-	Do:			cDecryptKeySector,
+	Name:        "decryptkeysector",
+	Args:        []command.Arg{command.ArgDisk, command.ArgOutFile, command.ArgKEK},
+	Description: "Identifies, decrypts, and dumps the key sector on %s to %s using %s.",
+	Do:          cDecryptKeySector,
 }
 
 const firstSectorsCount = 64
@@ -114,12 +115,12 @@ func cDumpFirst(d *disk.Disk, out io.Writer) error {
 }
 
 var dumpfirst = &command.Command{
-	Name:		"dumpfirst",
-	Args:		[]command.Arg{command.ArgDisk, command.ArgOutFile},
-	Description:	"Dumps the first " +
-		fmt.Sprintf("%d sectors (%d bytes)", firstSectorsCount, firstSectorsCount * disk.SectorSize) +
+	Name: "dumpfirst",
+	Args: []command.Arg{command.ArgDisk, command.ArgOutFile},
+	Description: "Dumps the first " +
+		fmt.Sprintf("%d sectors (%d bytes)", firstSectorsCount, firstSectorsCount*disk.SectorSize) +
 		" on %s to %s without decrypting.",
-	Do:			cDumpFirst,
+	Do: cDumpFirst,
 }
 
 func cDecryptFile(in io.Reader, out io.Writer, dek []byte, steps decryptloop.StepList) error {
@@ -127,7 +128,9 @@ func cDecryptFile(in io.Reader, out io.Writer, dek []byte, steps decryptloop.Ste
 	if err != nil {
 		return err
 	}
-	dl := decryptloop.New(steps, cipher, out)
+
+	buffered := bufio.NewWriterSize(out, 4*1024*1024)
+	dl := decryptloop.New(steps, cipher, buffered)
 	_, err = io.Copy(dl, in)
 	if err != nil {
 		return err
@@ -135,12 +138,12 @@ func cDecryptFile(in io.Reader, out io.Writer, dek []byte, steps decryptloop.Ste
 	if dl.StillPendingData() {
 		return fmt.Errorf("input file does not end with a complete block")
 	}
-	return nil
+	return buffered.Flush()
 }
 
 var decryptfile = &command.Command{
-	Name:		"decryptfile",
-	Args:		[]command.Arg{command.ArgInFile, command.ArgOutFile, command.ArgDEK, command.ArgDecryptionSteps},
-	Description:	"Decrypts %s to %s using the provided %s and %s.",
-	Do:			cDecryptFile,
+	Name:        "decryptfile",
+	Args:        []command.Arg{command.ArgInFile, command.ArgOutFile, command.ArgDEK, command.ArgDecryptionSteps},
+	Description: "Decrypts %s to %s using the provided %s and %s.",
+	Do:          cDecryptFile,
 }

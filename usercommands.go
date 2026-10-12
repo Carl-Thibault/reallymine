@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 
@@ -12,8 +13,8 @@ import (
 
 func runUntilDEK(d *disk.Disk, out io.Writer) (dec *Decrypter, err error) {
 	dec = &Decrypter{
-		Disk:		d,
-		Out:		out,
+		Disk: d,
+		Out:  out,
 	}
 	err = dec.FindKeySector()
 	if err != nil {
@@ -44,23 +45,32 @@ func cGetDEK(d *disk.Disk) error {
 }
 
 var getdek = &command.Command{
-	Name:		"getdek",
-	Args:		[]command.Arg{command.ArgDisk},
-	Description:	"Gets the DEK and decryption steps to use on %s and prints it on stdout.",
-	Do:			cGetDEK,
+	Name:        "getdek",
+	Args:        []command.Arg{command.ArgDisk},
+	Description: "Gets the DEK and decryption steps to use on %s and prints it on stdout.",
+	Do:          cGetDEK,
 }
 
 func cDecrypt(d *disk.Disk, out io.Writer) error {
-	dec, err := runUntilDEK(d, out)
+	buffered := bufio.NewWriterSize(out, 4*1024*1024)
+
+	dec, err := runUntilDEK(d, buffered)
 	if err != nil {
 		return err
 	}
-	return dec.DecryptDisk()
+
+	err = dec.DecryptDisk()
+	flushErr := buffered.Flush()
+
+	if err != nil {
+		return err
+	}
+	return flushErr
 }
 
 var decrypt = &command.Command{
-	Name:		"decrypt",
-	Args:		[]command.Arg{command.ArgDisk, command.ArgOutImage},
-	Description:	"Decrypts the entire disk %s to %s.",
-	Do:			cDecrypt,
+	Name:        "decrypt",
+	Args:        []command.Arg{command.ArgDisk, command.ArgOutImage},
+	Description: "Decrypts the entire disk %s to %s.",
+	Do:          cDecrypt,
 }
